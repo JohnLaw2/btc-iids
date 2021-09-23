@@ -1,0 +1,65 @@
+Hi ZmnSCPxj,
+
+Thanks for your response.
+
+I agree that n parties can create a channel factory with Bitcoin as it is
+today in which they use a single on-chain transaction to update the set
+of channels in the factory.
+
+The value of timeout-trees is not that it allows n parties to use one
+on-chain transsaction to update the channels in the factory. Instead, it's
+that the value of n can be much larger with timeout-trees than with a
+protocol that requires the n parties to all sign the funding and update
+transactions. Consider the case of creating a funding transaction with a
+multisig output that is owned by the n parties. If you start with a fixed
+set of n parties and ask them to all sign the funding transaction, but if
+one (or a few) of them fail to do so, you have to start all over with a
+new funding transaction with a multisig output with n-1 (say) owners.
+Then, if not all of the n-1 owners sign that transaction, you have to
+start all over again, etc...
+
+Getting these signatures for the funding transaction is an example of the
+"group coordination problem" that I formalize in Sec. 2.2 of the paper.
+There is no theoretical bound on how many parties can solve the group
+coordination problem, but there are obvious practical limitations in
+solving it with a very large group.
+
+Just to get a sense of what may be possible, assume that you have a set
+of 1000 very motivated parties who are all able to solve the group
+coordination problem. If you use a 1000-party multisig funding transaction,
+you can create a factory with 1000 parties and channels between those
+parties. However, if each of those 1000 very motivated funders also knows
+1000 casual users (who can't be trusted to promptly sign anything), those
+1000 motivated funders can use timeout-trees to create a factory with
+100 + (1000 * 1000) = 1,001,000 parties (the 1000 motivated funders and
+the 1,000,000 casual users). Thus, the value of timeout-trees is the fact
+that they support about a million parties, rather than a thousand parties.
+
+There are some constraints on the channels created by timeout-trees,
+namely that each channel must include one of the 1000 motivated funders
+as one of the two parties in the channel, and the entire factory has a
+limited lifetime. However, that doesn't seem too bad in practice, as the
+motivated funders are more likely to have a richly-connected set of
+channels that can be used to route between channels. Also, each casual
+users can be in a few timeout-trees, each with a different expiration date.
+As a result, they can shuffle their funds to those other timeout-trees
+prior to expiration (say once a month or once a year, depending on their
+needs and ability). Finally, this approach is attractive for casual users,
+as they can use the 2Stage channel protocol in conjunction with
+timeout-trees so that they don't need watchtowers and don't need to monitor
+the blockchain.
+
+The other protocols, update-forest and challenge-and-response, are even
+more scalable and powerful "factory" protocols. They also require one
+on-chain transaction to update ownership of the channels they create
+(which is a disadvantage compared to multisig factories). However, they
+can scale to even more parties than can be supported by timeout-trees, and
+they can transfer ownership of the channels in the factory to arbitrary
+parties, even if those parties were not known when the factory was created.
+
+Thus, these scaling technologies (timeout-trees, update-forest and
+challenge-and-response) seem to solve many of Bitcoin's scaling problems.
+
+Thanks,
+John
+

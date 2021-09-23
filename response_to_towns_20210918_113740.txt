@@ -1,0 +1,135 @@
+aj,
+
+Thanks for taking the time to go through my paper on inherited IDs (IIDs).
+Also, thanks for your concise and accurate descriptions of the IID proposal
+and the 2Stage channel protocol. I'm glad you feel the 2Stage protocol
+might be better than eltoo for a two-party channel.
+
+I want to address other parts of the paper that were obviously not as
+clear, as they led to two important misunderstandings.
+
+First, there is the issue of the use of an operator in the "timeout trees",
+"update-forest" and "challenge-and-response" factory protocols. While those
+protocols do include a party that is designated as the "operator", the
+operator is in no way a trusted party. While it's true that one would
+prefer an operator that follows the protocol fully and promptly, as that
+would allow one to keep the protocol off-chain, the operator can never
+take funds or prevent others from obtaining the funds that are due to them.
+In fact, this is exactly analogous to the selection of the party with whom
+one shares a two-party lightning channel. If one views lightning as being
+trust-free, then one will also view "timeout trees", "update-forest" and
+"challenge-and-response" to be trust-free.
+
+Second, there is the question of whether or not IIDs can be simulated with
+anyprevout. I don't believe that they can. Consider for example the case
+where Alice has an on-chain funding transaction F1 with output F1:0 that
+will be spent by a (currently off-chain) transaction F2 with output F2:0
+that will be spent by a settlement transaction S. Assume further that there
+is an on-chain control transaction C1 with output C1:0 owned by untrusted
+operator O, where C1:0 will be spent by a (currently off-chain) transaction
+C2 with output C2:0 that may, in certain cases, also be spent by S. In
+particular, assume F1 puts a covenant on F2 such that F2 puts a covenant
+on S, where the covenant on S can be met by either:
+A) waiting a CSV delay of one time unit (defined to be long enough to
+   allow a party with a competing transaction to put that competing
+   transaction on-chain first) and then spending only F2:0 (where F2:0 is
+   referenced via IID) and giving ownership of S:0 to Alice,
+or
+B) waiting until a CLV reaches time T_lock and then spending both F2:0 and
+   C2:0 (where F2:0 and C2:0 are referenced via IIDs).
+
+Assume that after Alice put F1 on-chain she wants to transfer ownership of the output S:0 to Bob without having to put F2 or S on-chain. She can do
+this with IIDs as follows. First, Alice asks the untrusted operator O to
+put C2 on-chain where C2 puts a covenant on S that forces S to spend both
+F2:0 and C2:0 (where F2:0 and C2:0 are referenced via IIDs) and to give
+ownership of S:0 to Bob (by making it spendable using Bob's public key).
+
+There are two cases. First, if O promptly puts the desired C2 on-chain,
+then Alice and Bob can wait until T_lock (while putting nothing else
+on-chain), at which point Bob can be assured that he owns S:0 (as any
+attempt by Alice to spend S:0 by meeting the covenant using case A above
+can be thwarted by Bob putting S on-chain first using case B above).
+Second, if O puts a different C2 on-chain, or fails to put any C2 on-chain
+promptly, Alice can reclaim her funds by putting F2 on-chain, waiting one
+time window, and then putting S on-chain using case A above.
+
+Thus, IIDs provide a trust-free means for Alice to transfer funds from F1
+to a party that is unknown to Alice when she puts F1 on-chain. I see two
+problems in trying to use anyprevout to achieve the same result. First,
+I don't know of any mechanism by which Alice can create a covenant that
+F2 puts on S which implements case B above. In some other settings, I can
+understand how one could use unique single-use keys in place of IID
+outputs. However, in this setting I don't see how to define a covenant
+that F2 puts on S that in case B forces the other input to spend C2:0, as
+signatures that are evaluated in spending F2:0 don't commit to the output
+scripts of other inputs to S. Second, and more fundamentally, even if one
+could define a covenant that F2 puts on S in case B forcing the other
+input to be signed by a single-use key owned by O, that still wouldn't
+unconditionally transfer ownership to Bob (without putting F2 and S
+on-chain). That's because in order to have single-use keys play the role
+of IIDs, they have to truly be single-use and there is no way Bob can know
+that O won't just sign some other S' that competes with S and sends S':0 to
+O, thus stealing the funds. Please let me know if I've missed something
+here.
+
+The example above isn't very useful, as it doesn't cut down on the number
+of on-chain transactions required to transfer ownership from Alice to Bob.
+However, it does capture the core functionality that IIDs provide that
+(I believe) anyprevout does not provide. This functionality is exactly
+what enables "update-forest" and "challenge-and-response" to allow a single
+on-chain transaction to transfer ownership of thousands or millions of
+channels in a trust-free manner, thus accomplishing with one on-chain
+transaction what would have required thousands or millions of anyprevout
+transactions (at least as far as I can tell). This is exactly the power
+of IIDs that I was referring to, and I found it surprising that this power
+was actually the result of restricting how a signed transaction can be used
+(as compared to a signed transaction that uses anyprevout).
+
+I hope clearing up these two misunderstandings is enough to pique your
+interest in reading the "timeout trees", "update-forest" and "challenge-
+and-response" protocols in more detail, as I'd be interested in your expert
+opinion on them.
+
+My remaining comments are minor compared to the previous ones.
+
+* Regarding the worst-case delay for eltoo-2party vs. 2Stage, I agree that
+  there is no single agreed upon model for analyzing this and opinions may
+  differ. In any case, I think that if one had a nearly-expired HTLC (or
+  if one is setting the lock time for an HTLC) and one could choose
+  between eltoo-2party, where the other party could have thousands or
+  millions of transactions competing with your settlement transaction, and
+  2Stage, where the other party can have at most one competing transaction,
+  some would prefer 2Stage.
+
+* In comparing eltoo-2party and 2Stage, I was surprised that you didn't
+  consider 2Stage's elimination of watchtowers for one or both parties as
+  being an advantage. I had thought that would be a big win in practice.
+
+* Regarding footnote 13's description of OP_CODESEPARATOR, I realize that
+  that footnote does not capture the change made in taproot. I addressed
+  that issue on p. 54 (and explained it in footnote 43), as footnote 13 was
+  designed to explain OP_CODESEPARATOR to those not already familiar with
+  it, while p. 54 was designed for the experts.
+
+* Regarding the new address type for floating transactions mentioned in the
+  paper, thanks for the correction. I'll remove this from the next version.
+
+In summary, the paper shows that:
+
+1) IIDs can be used to eliminate watchtowers for one or both parties in a
+   two-party channel (2Stage),
+2) IIDs can be used to create factories that allow very large numbers of
+   new users to obtain bitcoin in a watchtower-free and trust-free manner
+   (timeout trees),
+3) IIDs support trust-free factories with unbounded numbers of parties (and
+   channels) that allow the channels to be bought and sold by anyone,
+   including parties not originally in the factory, with a single on-chain
+   transaction, and
+4) IIDs achieve these results while using a more constrained, and thus
+   safer, change to Bitcoin than the support for floating transactions.
+
+Are these results of interest?
+
+Thanks,
+John
+

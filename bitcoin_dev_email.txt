@@ -1,0 +1,138 @@
+Subject:
+
+Inherited IDs - A safer, more powerful alternative to BIP-118 (ANYPREVOUT) for
+scaling Bitcoin
+
+Hi,
+
+I'd like to propose an alternative to BIP-118 [1] that is both safer and more
+powerful. The proposal is called Inherited IDs (IIDs) and is described in a
+paper that can be found here [2]. The paper presents IIDs and Layer 2 protocols
+using IIDs that are far more scalable and usable than those proposed for BIP-118
+(including eltoo [3]).
+
+Like BIP-118, IIDs are a proposal for a softfork that changes the rules for
+calculating certain signatures. BIP-118 supports signatures that do not
+commit to the transaction ID of the parent transaction, thus allowing "floating
+transactions". In contrast, the IID proposal does not allow floating
+transactions, but it does allow an output to specify that child transaction
+signatures commit to the parent transaction's IID, rather than its transaction
+ID.
+
+IID Definitions
+===============
+* If T is a transaction, TXID(T) is the transaction ID of T.
+* An output is an "IID output" if it is a native SegWit output with version 2
+  and a 32-byte witness program, and is a "non-IID output" otherwise.
+* A transaction is an "IID transaction" if it has at least one IID output.
+* If T is a non-IID transaction, or a coinbase transaction, IID(T) = TXID(T).
+* If T is a non-coinbase IID transaction, first_parent(T) = F is the transaction
+  referenced by the OutPoint in T's input 0, and IID(T) = hash(IID(F) || F_idx)
+  where F_idx is the index field in the OutPoint in T's input 0 (that is, T's
+  input 0 spends F's output F_idx).
+
+IID Signature Validation
+========================
+* Signatures that spend IID outputs commit to signature messages in which IIDs
+  replace transaction IDs in all OutPoints of the child transaction that spend
+  IID outputs.
+
+Note that IID(T) can be calculated from T (if it is a non-IID or a coinbase
+transaction) or from T and F (otherwise). Therefore, as long as nodes store (or
+calculate) the IID of each transaction in the UTXO set, they can validate
+signatures of transactions that spend IID outputs. Thus, the IID proposal fits
+Bitcoin's existing UTXO model, at the small cost of adding a 32-byte IID value
+for certain unspent outputs. Also, note that the IID of a transaction may not
+commit to the exact contents of the transaction, but it does commit to how the
+transaction is related to some exactly-specified transaction (such as being the
+first child of the second child of a specific transaction). As a result, a
+transaction that is signed using IIDs cannot be used more than once or in an
+unanticipated location, thus making it much safer than a floating transaction.
+
+2-Party Channel Protocols
+=========================
+BIP-118 supports the eltoo protocol [3] for 2-party channels, which improves
+upon the Lightning protocol for 2-party channels [4] by:
+1) simplifying the protocol,
+2) eliminating penalty transactions, and
+3) supporting late determination of transaction fees [1, Sec. 4.1.5].
+
+The IID proposal does not support the eltoo protocol. However, the IID proposal
+does support a 2-party channel protocol, called 2Stage [2, Sec. 3.3], that is
+arguably better than eltoo. Specifically, 2Stage achieves eltoo's 3 improvements
+listed above, plus it:
+4) eliminates the need for watchtowers [2, Sec. 3.6], and
+5) has constant (rather than linear) worst-case on-chain costs [2, Sec. 3.4].
+
+Channel Factories
+=================
+In general, an on-chain transaction is required to create or close a 2-party
+channel. Multi-party channel factories have been proposed in order to allow a
+fixed set of parties to create and close numerous 2-party channels between them,
+thus amortizing the on-channel costs of those channels [5]. BIP-118 also
+supports simple and efficient multi-party channel factories via the eltoo
+protocol [1, Sec. 5.2] (which are called "multi-party channels" in that paper).
+
+While the IID proposal does not support the eltoo protocol, it does support
+channel factories that are far more scalable and powerful than any previously-
+proposed channel factories (including eltoo factories). Specifically, IIDs
+support a simple factory protocol in which not all parties need to sign the 
+factory's funding transaction [2, Sec. 5.3], thus greatly improving the scale
+of the factory (at the expense of requiring an on-chain transaction to update
+the set of channels created by the factory). These channel factories can be
+combined with the 2Stage protocol to create trust-free and watchtower-free
+channels including very large numbers of casual users.
+
+Furthermore, IIDs support channel factories with an unbounded number of parties
+that allow all of the channels in the factory to be bought and sold by anyone
+(including parties not originally in the factory) with a single on-chain
+transaction in a trust-free manner [2, Secs. 6 and 7]. As a result, a single
+on-chain transaction can be used in place of thousands, or even millions, of
+Lightning or eltoo on-chain transactions. These channel factory protocols make
+critical use of IIDs and do not appear to be possible with BIP-118.
+
+Next Steps
+==========
+If IIDs sounds interesting, please take a look at the IID paper [2]. It contains
+many results not listed above, including rules for SVP nodes, protocols for
+off-chain channel networks, Layer 2 protocol extensions, support for covenants
+(including vaults), and nearly matching lower and upper bounds on multi-party
+channels.
+
+The paper also includes 3 options for how IIDs could be added to Bitcoin via a
+softfork [2, Appendix A]. I'm new to Bitcoin and am not sure which of these 3
+options is best. If anyone finds the IID proposal valuable, I would greatly
+appreciate it if they were willing to pick the best option (or invent an even
+better option) for adding IIDs to Bitcoin and create a BIP for that option.
+Hopefully, IIDs will provide a safe way to dramatically scale Bitcoin while
+improving its usability.
+
+Thanks,
+John
+
+
+References
+==========
+
+[1] BIP-118: https://anyprevout.xyz and https://github.com/bitcoin/bips/pull/943
+
+[2] Scaling Bitcoing with Inherited IDs, by John Law:
+    iids13.pdf at https://github.com/JohnLaw2/btc-iids
+
+[3] eltoo: A Simple Layer2 Protocol for Bitcoin, by Decker, Russell & Osuntokun:
+    https://blockstream.com/eltoo.pdf
+
+[4] The Bitcoin Lightning Network, by Poon & Dryja:
+    https://lightning.network/lightning-network-paper.pdf
+
+[5] Scalable Funding of Bitcoin Micropayment Channel Networks, by Burchert,
+    Decker & Wattenhofer: http://dx.doi.org/10.1098/rsos.180089
+
+Acknowledgments
+===============
+Thanks to Ruben Somsen and Jeremy Rubin for their helpful comments.
+
+Also, thanks to Bob McElrath for his original brainstorm that led to the
+creation of the IID concept:
+https://diyhpl.us/wiki/transcripts/2019-02-09-mcelrath-on-chain-defense-in-depth
+
